@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "webmail-mcp": {
+      "command": "/path/to/.venv/bin/webmail-mcp",
+      "args": ["mcp"],
+      "env": {
+        "ASSISTANT_BRIDGE_HOME": "/path/to/assistant-bridge",
+        "ASSISTANT_BRIDGE_TOKEN": "PASTE_TOKEN_FROM_webmail-mcp_token_create"
+      }
+    }
+  }
+}

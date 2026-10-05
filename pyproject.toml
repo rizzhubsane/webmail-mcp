@@ -1,0 +1,35 @@
+[project]
+name = "webmail-mcp"
+version = "0.1.0"
+description = "webmail-mcp. Credentials stay on this machine."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic",
+  "cryptography",
+  "python-dotenv",
+  "pypdf",
+  "certifi",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+
+[project.scripts]
+webmail-mcp = "assistant_bridge.cli:main"
+assistant-bridge = "assistant_bridge.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+assistant_bridge = ["brand/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

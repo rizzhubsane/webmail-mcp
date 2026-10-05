@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pydantic
+cryptography
+python-dotenv
+pypdf
+certifi
+.

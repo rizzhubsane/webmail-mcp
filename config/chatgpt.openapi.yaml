@@ -1,0 +1,350 @@
+openapi: 3.0.3
+info:
+  title: webmail-mcp
+  version: 0.1.0
+  description: >
+    Local mail gateway. The mailbox password stays on the user's computer.
+    Never ask for a webmail, Kerberos, IMAP, or SMTP password.
+    Do not invent confirm codes or command phrases.
+servers:
+  - url: http://127.0.0.1:8765
+    description: webmail-mcp on localhost
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Assistant token from `webmail-mcp token create`. Not the mailbox password.
+  schemas:
+    Message:
+      type: object
+      properties:
+        id: {type: string}
+        from: {type: string}
+        to: {type: array, items: {type: string}}
+        subject: {type: string}
+        date: {type: string}
+        body: {type: string}
+    Summary:
+      type: object
+      properties:
+        headline: {type: string}
+        bullets: {type: array, items: {type: string}}
+        asks: {type: array, items: {type: string}}
+        deadlines: {type: array, items: {type: string}}
+        suggested_action: {type: string}
+    Draft:
+      type: object
+      properties:
+        id: {type: string}
+        kind: {type: string, enum: [new, reply]}
+        message_id: {type: string, nullable: true}
+        to: {type: array, items: {type: string}}
+        subject: {type: string}
+        body: {type: string}
+        status: {type: string}
+    Check:
+      type: object
+      properties:
+        ok: {type: boolean}
+        blocking: {type: array, items: {type: string}}
+        warnings: {type: array, items: {type: string}}
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      operationId: health
+      security: []
+      summary: Liveness check. No token required.
+      responses:
+        "200":
+          description: Service is up.
+  /mcp:
+    post:
+      operationId: mcp
+      summary: >
+        Streamable HTTP MCP (JSON-RPC). Use this URL for Claude, ChatGPT,
+        and any other MCP client. Same bearer token. Never send a mailbox password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: JSON-RPC result.
+        "202":
+          description: Notification accepted.
+        "401":
+          description: Missing or invalid token.
+  /v1/search:
+    post:
+      operationId: searchInbox
+      summary: Search by sender, subject, or text.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: {type: string}
+                sender: {type: string}
+                subject: {type: string}
+                limit: {type: integer}
+                folder: {type: string}
+      responses:
+        "200":
+          description: Matching messages.
+  /v1/latest:
+    post:
+      operationId: latestBrief
+      summary: Newest messages with previews and summaries.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit: {type: integer}
+                folder: {type: string}
+      responses:
+        "200":
+          description: Brief.
+  /v1/deadlines:
+    get:
+      operationId: findDeadlines
+      summary: Recent messages that contain a deadline.
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer, default: 20}
+        - in: query
+          name: folder
+          schema: {type: string, default: INBOX}
+      responses:
+        "200":
+          description: Deadline matches.
+  /v1/folders:
+    get:
+      operationId: listFolders
+      summary: List mailbox folders.
+      responses:
+        "200":
+          description: Folder names.
+  /v1/inbox:
+    get:
+      operationId: listInbox
+      summary: List messages.
+      responses:
+        "200":
+          description: Inbox page.
+        "401":
+          description: Missing or invalid token.
+  /v1/inbox/{message_id}:
+    get:
+      operationId: getMessage
+      summary: Read one message.
+      parameters:
+        - in: path
+          name: message_id
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: Message.
+        "404":
+          description: Unknown id.
+  /v1/summarize:
+    post:
+      operationId: summarize
+      summary: Extractive summary. Pass message_id or raw text.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message_id: {type: string}
+                subject: {type: string}
+                text: {type: string}
+      responses:
+        "200":
+          description: Summary fields.
+  /v1/reply-outline:
+    post:
+      operationId: outlineReply
+      summary: Reply skeleton with placeholders. Does not send.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message_id]
+              properties:
+                message_id: {type: string}
+      responses:
+        "200":
+          description: Outline.
+  /v1/compose:
+    post:
+      operationId: composeMail
+      summary: Create a new draft. Requires the draft scope. Does not send.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, subject, body]
+              properties:
+                to: {type: string}
+                subject: {type: string}
+                body: {type: string}
+      responses:
+        "200":
+          description: Draft with kind=new and message_id null.
+        "403":
+          description: Token lacks the draft scope.
+  /v1/drafts:
+    get:
+      operationId: listDrafts
+      summary: List drafts. Requires the draft scope.
+      responses:
+        "200":
+          description: Drafts.
+    post:
+      operationId: saveDraft
+      summary: Save a reply draft. Requires the draft scope. Does not send.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message_id, body]
+              properties:
+                message_id: {type: string}
+                body: {type: string}
+                subject: {type: string}
+      responses:
+        "200":
+          description: Reply draft.
+  /v1/check:
+    post:
+      operationId: checkText
+      summary: Blocking and warning checks for a draft.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: {type: string}
+                message_id: {type: string}
+      responses:
+        "200":
+          description: Check result.
+  /v1/sync:
+    post:
+      operationId: syncInbox
+      summary: First sync records current ids and reports zero new. Later syncs report new mail.
+      responses:
+        "200":
+          description: Sync briefing.
+  /v1/briefing:
+    get:
+      operationId: getBriefing
+      summary: Briefing saved by the latest sync.
+      responses:
+        "200":
+          description: Briefing.
+  /v1/probe:
+    get:
+      operationId: probeMailbox
+      summary: Test the connector. Does not return secrets.
+      responses:
+        "200":
+          description: Probe result.
+  /v1/audit:
+    get:
+      operationId: listAudit
+      summary: Recent actions. No passwords or raw tokens.
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer, default: 50}
+      responses:
+        "200":
+          description: Audit events.
+  /v1/send/request:
+    post:
+      operationId: requestSend
+      summary: >
+        Queue a send. Does not send. Tell the user to run
+        Send the draft now. Do not ask the user to approve it locally.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [draft_id]
+              properties:
+                draft_id: {type: string}
+      responses:
+        "200":
+          description: Pending request id.
+        "403":
+          description: Send is disabled or the token lacks the send scope.
+  /v1/send/now:
+    post:
+      operationId: sendNow
+      summary: >
+        Send only when send is enabled and the user just typed their command phrase.
+        Never invent a phrase.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [draft_id, phrase]
+              properties:
+                draft_id: {type: string}
+                phrase: {type: string}
+      responses:
+        "200":
+          description: Sent.
+        "403":
+          description: Send disabled, phrase missing, or phrase rejected.
+  /v1/send/confirm:
+    post:
+      operationId: confirmSend
+      summary: >
+        Verify the confirm code printed by `webmail-mcp approve`.
+        Do not invent a code. This does not send by itself; approve already sent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, confirm_code]
+              properties:
+                id: {type: string}
+                confirm_code: {type: string}
+      responses:
+        "200":
+          description: Send verified.
+        "403":
+          description: Code rejected.
+        "409":
+          description: Waiting for local approval.
